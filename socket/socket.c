@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <fcntl.h>
 
 /**
  * 函数名：CreatLocalSocketServer
@@ -103,9 +104,9 @@ int CreatTCPSocketServer(char* ip_name, int port, int block_flag)
     //绑定信息，即命名socket
     srv_addr.sin_family = AF_INET;
     srv_addr.sin_port = htons(port);
-    //inet_addr函数将用点分十进制字符串表示的IPv4地址转化为用网络
-    //字节序整数表示的IPv4地址
-    srv_addr.sin_addr.s_addr = inet_addr(ip_name);
+    //inet_pton函数将用点分十进制字符串表示的IPv4/IPv6地址转化为用网络
+    //字节序整数表示的IPv4/IPv6地址
+    inet_pton(AF_INET, ip_name, &srv_addr.sin_addr);
 	//bind sockfd&addr
 	ret=bind(listen_fd,(struct sockaddr*)&srv_addr,sizeof(srv_addr));
 	if(ret<0){
@@ -135,7 +136,7 @@ int ConnectTCPSocketServer( char* ip_name, int port)
 {
 	int ret = -1,connect_fd = -1;
 	struct sockaddr_in srv_addr = {0};
-	connect_fd=socket(PF_UNIX,SOCK_STREAM,0);
+	connect_fd=socket(AF_INET,SOCK_STREAM,0);
 	if(connect_fd  < 0) {
 		printf("<%s,%d> socket err: errno[%d], %s\n",__func__,__LINE__,errno, strerror(errno));
 		return -1;
@@ -207,12 +208,64 @@ int ConnectUDPSocketServer(char* ip_name, int port)
  * 功能：读取Socket
  * 参数：
  * 返回：
- * 备注：当前仅支持ip
+ * 备注：
  *
  */
 int ReadSocket(int socket_fd, void *buf, int buf_len, long int time_out_ms)
 {
-	return 0;
+	int flags = 0,bak_flag = 0;
+	fd_set rfds;
+	struct timeval tv;
+	int ret;
+
+	if(buf_len <= 0) {
+		printf("<%s,%d>please make sure buf_len:%d. \r\n",__func__,__LINE__,buf_len);
+		return -1;
+	}
+
+	if(socket_fd < 0){
+		printf("<%s,%d>err: socket_fd:%d \r\n",__func__,__LINE__,socket_fd);
+		return -1;
+	}
+
+	//获取参数，保存参数,改为阻塞方式
+	if ((flags = fcntl(socket_fd, F_GETFL, 0)) == -1) {
+		flags = 0;
+	}
+	if(0 == (flags & O_NONBLOCK)) {
+		flags &= ~O_NONBLOCK;
+		fcntl(socket_fd, F_SETFL, flags);
+		bak_flag = flags;
+	}
+	FD_ZERO(&rfds);
+	FD_SET(socket_fd, &rfds);
+
+	tv.tv_sec = time_out_ms/1000;
+	tv.tv_usec = (time_out_ms)*1000;
+
+	ret = select(socket_fd + 1, &rfds, NULL, NULL, &tv);
+	if (ret > 0) {
+		if(FD_ISSET(socket_fd, &rfds)) {
+			usleep(100000);
+			ret = recv(socket_fd, buf , buf_len , 0);
+			if(ret < 0) {
+				printf("<%s,%d> select err: errno[%d], %s\n",__func__,__LINE__,errno, strerror(errno));
+			}else if(0 == ret) {
+				printf("<%s,%d>socket disconnect! \r\n",__func__,__LINE__);
+				ret = -1;
+			}
+		}
+	} else if(0 == ret) {
+		//timeout
+	} else {
+		printf("<%s,%d> select err: errno[%d], %s\n",__func__,__LINE__,errno, strerror(errno));
+	}
+
+	//还原参数
+	if(0 != bak_flag) {
+		fcntl(socket_fd, F_SETFL, bak_flag);
+	}
+	return ret;
 }
 
 /**
@@ -220,12 +273,71 @@ int ReadSocket(int socket_fd, void *buf, int buf_len, long int time_out_ms)
  * 功能：写入socket
  * 参数：
  * 返回：
- * 备注：当前仅支持ip
+ * 备注：
  *
  */
 int WriteSocket(int socket_fd, void *buf, int buf_len, long int time_out_ms)
 {
-	return 0;
+
+	int flags = 0,bak_flag = 0;
+	fd_set rfds;
+	struct timeval tv;
+	int ret;
+
+	if(buf_len <= 0) {
+		printf("<%s,%d>please make sure buf_len:%d. \r\n",__func__,__LINE__,buf_len);
+		return -1;
+	}
+
+	if(socket_fd < 0){
+		printf("<%s,%d>err: socket_fd:%d \r\n",__func__,__LINE__,socket_fd);
+		return -1;
+	}
+
+	//获取参数，保存参数,改为阻塞方式
+	if ((flags = fcntl(socket_fd, F_GETFL, 0)) == -1) {
+		flags = 0;
+	}
+	if(0 == (flags & O_NONBLOCK)) {
+		flags &= ~O_NONBLOCK;
+		fcntl(socket_fd, F_SETFL, flags);
+		bak_flag = flags;
+	}
+
+	FD_ZERO(&rfds);
+	FD_SET(socket_fd, &rfds);
+
+	tv.tv_sec = time_out_ms/1000;
+	tv.tv_usec = (time_out_ms)*1000;
+	ret = select(socket_fd + 1, NULL, &rfds, NULL, &tv);
+	if (ret > 0) {
+		if(FD_ISSET(socket_fd, &rfds)){
+			usleep(100000);
+			ret = send(socket_fd, buf , buf_len , 0);
+
+			if(ret < 0) {
+				printf("<%s,%d> select err: errno[%d], %s\n",__func__,__LINE__,errno, strerror(errno));
+			}else if(0 == ret) {
+				printf("<%s,%d>socket disconnect! \r\n",__func__,__LINE__);
+				ret = -1;
+			}
+
+			if(0 == ret){
+				ret = -1;
+			}
+		}
+	} else if(0 == ret) {
+		//timeout
+	} else {
+		printf("<%s,%d> select err: errno[%d], %s\n",__func__,__LINE__,errno, strerror(errno));
+	}
+
+	//还原参数
+	if(0 != bak_flag) {
+		fcntl(socket_fd, F_SETFL, bak_flag);
+	}
+
+	return ret;
 }
 
 

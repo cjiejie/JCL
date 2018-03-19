@@ -17,6 +17,8 @@ typedef enum {
 	I_FOCUS 		= 0x01 << 1, // 如果资源存在则强制删除再创建
 } InitFlag_t;
 
+void LibBuiltTime(void);
+
 #ifdef __cplusplus
 }
 #endif
