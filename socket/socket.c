@@ -41,17 +41,17 @@ int CreatLocalSocketServer(const  char *socket_name, int block_flag)
 	ret=bind(listen_fd,(struct sockaddr*)&srv_addr,sizeof(srv_addr));
 	if(ret<0){
 		printf("<%s,%d> bind err: errno[%d], %s\n",__func__,__LINE__,errno, strerror(errno));
-	close(listen_fd);
-	unlink(socket_name);
-	return -1;
+		close(listen_fd);
+		unlink(socket_name);
+		return -1;
 	}
 	//listen sockfd
 	ret=listen(listen_fd,1);
 	if(ret<0){
 		printf("<%s,%d> listen err: errno[%d], %s\n",__func__,__LINE__,errno, strerror(errno));
-	 close(listen_fd);
-	 unlink(socket_name);
-	 return -1;
+		 close(listen_fd);
+		 unlink(socket_name);
+		 return -1;
 	}
 	return listen_fd; //ready to accept
 }
