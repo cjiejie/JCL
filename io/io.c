@@ -68,7 +68,7 @@ int SelectRead(int socket_fd, void *buf, int buf_len, long int time_out_ms)
 	FD_SET(socket_fd, &rfds);
 
 	tv.tv_sec = time_out_ms/1000;
-	tv.tv_usec = (time_out_ms)*1000;
+	tv.tv_usec = (time_out_ms%1000)*1000;
 	ret = select(socket_fd + 1, &rfds, NULL, NULL, &tv);
 	if (ret > 0) {
 		if(FD_ISSET(socket_fd, &rfds)){
@@ -128,7 +128,7 @@ int SelectWrite(int socket_fd, void *buf, int buf_len, long int time_out_ms)
 	FD_SET(socket_fd, &rfds);
 
 	tv.tv_sec = time_out_ms/1000;
-	tv.tv_usec = (time_out_ms)*1000;
+	tv.tv_usec = (time_out_ms%1000)*1000;
 	ret = select(socket_fd + 1, NULL, &rfds, NULL, &tv);
 	if (ret > 0) {
 		if(FD_ISSET(socket_fd, &rfds)){

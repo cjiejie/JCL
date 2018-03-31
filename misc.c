@@ -10,7 +10,7 @@
 
 void LibBuiltTime(void)
 {
-	printf("libJCL.so built in [%s %s]\n",__DATE__,__TIME__);
+	printf("libJCL.so V1.1.0 built in [%s %s]\n",__DATE__,__TIME__);
 }
 
 

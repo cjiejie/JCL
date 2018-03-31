@@ -173,7 +173,8 @@ int CreatUDPSocketServer(char* ip_name, int port, long int ms)
 	    //绑定信息，即命名socket
 	    srv_addr.sin_family = AF_INET;
 	    srv_addr.sin_port = htons(port);
-	    srv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	    srv_addr.sin_addr.s_addr = inet_addr(ip_name);
+//	    srv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 		//bind sockfd&addr
 		ret=bind(sock_fd,(struct sockaddr*)&srv_addr,sizeof(srv_addr));
 		if(ret<0){
@@ -181,6 +182,14 @@ int CreatUDPSocketServer(char* ip_name, int port, long int ms)
 			close(sock_fd);
 			return -1;
 		}
+	    /* 设置阻塞超时 */
+	    struct timeval time_out;
+	    time_out.tv_sec = ms/1000;                 //设置5s超时
+	    time_out.tv_usec = (ms%1000)*1000;
+	    if (setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, &time_out, sizeof(time_out)) < 0) {
+	    	printf("<%s,%d>time out setting failed\n",__func__,__LINE__);
+	    }
+
 		return sock_fd; //ready to recvform
 }
 
@@ -192,14 +201,19 @@ int CreatUDPSocketServer(char* ip_name, int port, long int ms)
  * 备注：当前仅支持ip
  *
  */
-int ConnectUDPSocketServer(char* ip_name, int port)
+int ConnectUDPSocketServer(char* ip_name, int port,struct sockaddr* ser_addr)
 {
 	int sock_fd = -1;
-	sock_fd=socket(PF_UNIX,SOCK_DGRAM,0);
+	sock_fd=socket(AF_INET,SOCK_DGRAM,0);
 	if(sock_fd  < 0) {
 		printf("<%s,%d> socket err: errno[%d], %s\n",__func__,__LINE__,errno, strerror(errno));
 		return -1;
 	}
+	struct sockaddr_in *ser = (struct sockaddr_in*) ser_addr;
+	memset(ser, 0, sizeof(struct sockaddr_in));
+	ser->sin_family = AF_INET;
+	ser->sin_addr.s_addr = inet_addr(ip_name);//注意网络序转换
+	ser->sin_port = htons(port);  //注意网络序转换
 	return sock_fd;
 }
 
@@ -241,7 +255,7 @@ int ReadSocket(int socket_fd, void *buf, int buf_len, long int time_out_ms)
 	FD_SET(socket_fd, &rfds);
 
 	tv.tv_sec = time_out_ms/1000;
-	tv.tv_usec = (time_out_ms)*1000;
+	tv.tv_usec = (time_out_ms%1000)*1000;
 
 	ret = select(socket_fd + 1, &rfds, NULL, NULL, &tv);
 	if (ret > 0) {
@@ -308,7 +322,7 @@ int WriteSocket(int socket_fd, void *buf, int buf_len, long int time_out_ms)
 	FD_SET(socket_fd, &rfds);
 
 	tv.tv_sec = time_out_ms/1000;
-	tv.tv_usec = (time_out_ms)*1000;
+	tv.tv_usec = (time_out_ms%1000)*1000;
 	ret = select(socket_fd + 1, NULL, &rfds, NULL, &tv);
 	if (ret > 0) {
 		if(FD_ISSET(socket_fd, &rfds)){
